@@ -3,6 +3,7 @@ import test from "node:test";
 import { createEvidenceBundle, verifyEvidenceBundle } from "../src/bundle.js";
 import { evaluateGate } from "../src/gate.js";
 import { compareEvidence, validateSkill } from "../src/skill.js";
+import type { EvidenceBundle } from "../src/contracts.js";
 
 const good = `---\nname: release-notes\ndescription: Write release notes.\n---\n\nDo work.\n`;
 const warning = `---\nname: ReleaseNotes\ndescription: Write release notes.\n---\n\nDo work.\n`;
@@ -51,4 +52,17 @@ test("bundle verification detects payload tampering", () => {
 test("canonical evidence hashing rejects values JSON cannot represent faithfully", () => {
   assert.throws(() => createEvidenceBundle({ bad: { missing: undefined } }), /cannot contain undefined/);
   assert.throws(() => createEvidenceBundle({ bad: Number.NaN }), /non-finite numbers/);
+});
+
+test("verification reports malformed non-JSON payloads instead of throwing", () => {
+  const malformed = {
+    schemaVersion: "skillbench.bundle/v1",
+    entries: [{ name: "bad", sha256: "0".repeat(64), payload: { missing: undefined } }],
+    bundleSha256: "0".repeat(64),
+  } as EvidenceBundle;
+
+  const result = verifyEvidenceBundle(malformed);
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some((error) => error.startsWith("entry is not canonical JSON: bad:")));
+  assert.ok(result.errors.some((error) => error.startsWith("bundle is not canonical JSON:")));
 });
