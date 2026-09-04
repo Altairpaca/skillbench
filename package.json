@@ -1,0 +1,22 @@
+{
+  "name": "@altairpaca/skillbench",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Deterministic conformance and regression evidence for agent skills.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "skillbench": "./dist/src/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test dist/tests/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}
