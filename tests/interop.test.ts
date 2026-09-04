@@ -47,8 +47,9 @@ test("error and skipped outcomes remain explicitly non-scoreable", () => {
 });
 
 test("portable observation requires a model identity", () => {
+  const { model: _model, ...withoutModel } = run();
   assert.throws(
-    () => createHarnessObservation({ runId: "run-001", benchmark: { id: "fixture-bench" }, run: run({ model: undefined }) }),
+    () => createHarnessObservation({ runId: "run-001", benchmark: { id: "fixture-bench" }, run: withoutModel }),
     /run\.model is required/,
   );
 });
