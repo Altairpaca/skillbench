@@ -59,17 +59,36 @@ export function verifyEvidenceBundle(bundle: EvidenceBundle): BundleVerification
     errors.push(`schemaVersion must equal ${BUNDLE_SCHEMA_VERSION}`);
   }
 
-  const names = new Set<string>();
-  for (const entry of bundle.entries) {
-    if (!entry.name.trim()) errors.push("entry name must be non-empty");
-    if (names.has(entry.name)) errors.push(`duplicate entry name: ${entry.name}`);
-    names.add(entry.name);
-    const actual = sha256Json(entry.payload);
-    if (actual !== entry.sha256) errors.push(`entry digest mismatch: ${entry.name}`);
+  if (!Array.isArray(bundle.entries) || bundle.entries.length === 0) {
+    errors.push("entries must be a non-empty array");
+    return { valid: false, errors };
   }
 
-  const expectedBundleDigest = bundleDigest(bundle.entries);
-  if (expectedBundleDigest !== bundle.bundleSha256) errors.push("bundle digest mismatch");
+  const names = new Set<string>();
+  for (const entry of bundle.entries) {
+    if (typeof entry.name !== "string" || !entry.name.trim()) {
+      errors.push("entry name must be non-empty");
+      continue;
+    }
+    if (names.has(entry.name)) errors.push(`duplicate entry name: ${entry.name}`);
+    names.add(entry.name);
+
+    try {
+      const actual = sha256Json(entry.payload);
+      if (actual !== entry.sha256) errors.push(`entry digest mismatch: ${entry.name}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`entry is not canonical JSON: ${entry.name}: ${message}`);
+    }
+  }
+
+  try {
+    const expectedBundleDigest = bundleDigest(bundle.entries);
+    if (expectedBundleDigest !== bundle.bundleSha256) errors.push("bundle digest mismatch");
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    errors.push(`bundle is not canonical JSON: ${message}`);
+  }
 
   return { valid: errors.length === 0, errors };
 }
