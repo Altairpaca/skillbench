@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "skillbench.harness-observation/v1",
+  "runId": "fixture-run-001",
+  "benchmark": {
+    "id": "skillbench-fixture",
+    "version": "1"
+  },
+  "caseId": "portable-contract",
+  "trial": 0,
+  "harness": {
+    "id": "fixture-harness",
+    "version": "1.2.3"
+  },
+  "model": {
+    "id": "fixture-model",
+    "version": "2026-08-31"
+  },
+  "skillSourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "outcome": "pass",
+  "startedAt": "2026-09-04T00:00:00.000Z",
+  "finishedAt": "2026-09-04T00:00:01.250Z",
+  "latencyMs": 1250,
+  "inputTokens": 100,
+  "outputTokens": 20,
+  "costUsd": 0.01,
+  "evidenceUri": "fixture://skillbench/portable-contract",
+  "configuration": {
+    "reasoning": "high",
+    "skillEnabled": true
+  },
+  "environment": {
+    "arch": "x64",
+    "os": "linux"
+  }
+}
