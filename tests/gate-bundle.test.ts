@@ -47,3 +47,8 @@ test("bundle verification detects payload tampering", () => {
   assert.ok(verification.errors.includes("entry digest mismatch: report"));
   assert.ok(verification.errors.includes("bundle digest mismatch"));
 });
+
+test("canonical evidence hashing rejects values JSON cannot represent faithfully", () => {
+  assert.throws(() => createEvidenceBundle({ bad: { missing: undefined } }), /cannot contain undefined/);
+  assert.throws(() => createEvidenceBundle({ bad: Number.NaN }), /non-finite numbers/);
+});
