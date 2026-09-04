@@ -65,6 +65,15 @@ function requireNonNegativeFinite(value: number | undefined, field: string): num
   return value;
 }
 
+function requireOffsetAwareTimestamp(value: string, field: string): number {
+  if (!/(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+    throw new Error(`${field} must include an explicit timezone offset or Z`);
+  }
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) throw new Error(`${field} must be a valid timestamp`);
+  return parsed;
+}
+
 function validateJsonObject(value: Readonly<Record<string, unknown>>, field: string): void {
   try {
     canonicalJson(value);
@@ -89,11 +98,9 @@ export function createHarnessObservation(input: HarnessObservationInput): Harnes
   const trial = requireNonNegativeInteger(input.run.trial, "run.trial");
   if (trial === undefined) throw new Error("run.trial is required");
 
-  const startedAtMs = Date.parse(input.run.startedAt);
-  const finishedAtMs = Date.parse(input.run.finishedAt);
-  if (!Number.isFinite(startedAtMs) || !Number.isFinite(finishedAtMs) || finishedAtMs < startedAtMs) {
-    throw new Error("run timestamps must be valid and finishedAt must not precede startedAt");
-  }
+  const startedAtMs = requireOffsetAwareTimestamp(input.run.startedAt, "run.startedAt");
+  const finishedAtMs = requireOffsetAwareTimestamp(input.run.finishedAt, "run.finishedAt");
+  if (finishedAtMs < startedAtMs) throw new Error("run.finishedAt must not precede run.startedAt");
 
   const configuration = input.configuration ?? {};
   const environment = input.environment ?? {};
