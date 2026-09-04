@@ -1,15 +1,24 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
+import { createEvidenceBundle, verifyEvidenceBundle } from "./bundle.js";
+import { evaluateGate } from "./gate.js";
 import { compareEvidence, validateSkill } from "./skill.js";
-import type { SkillEvidenceReport } from "./contracts.js";
+import type { EvidenceBundle, GatePolicy, SkillEvidenceReport } from "./contracts.js";
 
 function usage(): never {
-  console.error("Usage:\n  skillbench validate <SKILL.md>\n  skillbench compare <base-report.json> <current-report.json>");
+  console.error(
+    "Usage:\n" +
+      "  skillbench validate <SKILL.md>\n" +
+      "  skillbench compare <base-report.json> <current-report.json>\n" +
+      "  skillbench gate <base-report.json> <current-report.json> [policy.json]\n" +
+      "  skillbench bundle <name=report.json> [name=report.json ...]\n" +
+      "  skillbench verify-bundle <bundle.json>",
+  );
   process.exit(2);
 }
 
-async function readJson(path: string): Promise<SkillEvidenceReport> {
-  return JSON.parse(await readFile(path, "utf8")) as SkillEvidenceReport;
+async function readJson<T>(path: string): Promise<T> {
+  return JSON.parse(await readFile(path, "utf8")) as T;
 }
 
 async function main(): Promise<void> {
@@ -27,9 +36,48 @@ async function main(): Promise<void> {
   if (command === "compare") {
     const [basePath, currentPath] = args;
     if (!basePath || !currentPath) usage();
-    const report = compareEvidence(await readJson(basePath), await readJson(currentPath));
+    const report = compareEvidence(
+      await readJson<SkillEvidenceReport>(basePath),
+      await readJson<SkillEvidenceReport>(currentPath),
+    );
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
     process.exitCode = report.compatible ? 0 : 1;
+    return;
+  }
+
+  if (command === "gate") {
+    const [basePath, currentPath, policyPath] = args;
+    if (!basePath || !currentPath) usage();
+    const base = await readJson<SkillEvidenceReport>(basePath);
+    const current = await readJson<SkillEvidenceReport>(currentPath);
+    const policy = policyPath ? await readJson<GatePolicy>(policyPath) : {};
+    const report = evaluateGate(compareEvidence(base, current), current, policy);
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    process.exitCode = report.decision === "pass" ? 0 : 1;
+    return;
+  }
+
+  if (command === "bundle") {
+    if (args.length === 0) usage();
+    const payloads: Record<string, unknown> = {};
+    for (const arg of args) {
+      const separator = arg.indexOf("=");
+      if (separator <= 0 || separator === arg.length - 1) usage();
+      const name = arg.slice(0, separator);
+      const path = arg.slice(separator + 1);
+      if (Object.hasOwn(payloads, name)) throw new Error(`duplicate bundle entry name: ${name}`);
+      payloads[name] = await readJson<unknown>(path);
+    }
+    process.stdout.write(`${JSON.stringify(createEvidenceBundle(payloads), null, 2)}\n`);
+    return;
+  }
+
+  if (command === "verify-bundle") {
+    const path = args[0];
+    if (!path) usage();
+    const result = verifyEvidenceBundle(await readJson<EvidenceBundle>(path));
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    process.exitCode = result.valid ? 0 : 1;
     return;
   }
 
