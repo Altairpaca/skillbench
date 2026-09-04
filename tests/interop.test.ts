@@ -61,7 +61,7 @@ test("portable observation rejects invalid timing and non-json configuration", (
       benchmark: { id: "fixture-bench" },
       run: run({ finishedAt: "2026-09-03T23:59:59Z" }),
     }),
-    /finishedAt must not precede startedAt/,
+    /run\.finishedAt must not precede run\.startedAt/,
   );
 
   assert.throws(
@@ -73,4 +73,34 @@ test("portable observation rejects invalid timing and non-json configuration", (
     }),
     /configuration must be canonical JSON/,
   );
+});
+
+test("portable observation requires explicit timezone offsets", () => {
+  assert.throws(
+    () => createHarnessObservation({
+      runId: "run-naive-start",
+      benchmark: { id: "fixture-bench" },
+      run: run({ startedAt: "2026-09-04T00:00:00", finishedAt: "2026-09-04T00:00:01Z" }),
+    }),
+    /run\.startedAt must include an explicit timezone offset or Z/,
+  );
+
+  assert.throws(
+    () => createHarnessObservation({
+      runId: "run-naive-finish",
+      benchmark: { id: "fixture-bench" },
+      run: run({ startedAt: "2026-09-04T00:00:00\u002b08:00", finishedAt: "2026-09-04T00:00:01" }),
+    }),
+    /run\.finishedAt must include an explicit timezone offset or Z/,
+  );
+
+  const offsetAware = createHarnessObservation({
+    runId: "run-offset-aware",
+    benchmark: { id: "fixture-bench" },
+    run: run({
+      startedAt: "2026-09-04T08:00:00\u002b08:00",
+      finishedAt: "2026-09-04T08:00:01.250\u002b08:00",
+    }),
+  });
+  assert.equal(offsetAware.latencyMs, 1250);
 });
