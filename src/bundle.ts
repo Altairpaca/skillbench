@@ -6,15 +6,22 @@ import {
   type EvidenceBundleEntry,
 } from "./contracts.js";
 
-function canonicalize(value: unknown): unknown {
+type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+
+function canonicalize(value: unknown): JsonValue {
+  if (value === null || typeof value === "boolean" || typeof value === "string") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new TypeError("canonical evidence JSON cannot contain non-finite numbers");
+    return value;
+  }
   if (Array.isArray(value)) return value.map(canonicalize);
-  if (value !== null && typeof value === "object") {
+  if (typeof value === "object") {
     const entries = Object.entries(value as Record<string, unknown>)
       .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => [key, canonicalize(item)]);
-    return Object.fromEntries(entries);
+      .map(([key, item]) => [key, canonicalize(item)] as const);
+    return Object.fromEntries(entries) as { [key: string]: JsonValue };
   }
-  return value;
+  throw new TypeError(`canonical evidence JSON cannot contain ${typeof value}`);
 }
 
 export function canonicalJson(value: unknown): string {
