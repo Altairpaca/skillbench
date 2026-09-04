@@ -52,6 +52,11 @@ test("bundle verification detects payload tampering", () => {
 test("canonical evidence hashing rejects values JSON cannot represent faithfully", () => {
   assert.throws(() => createEvidenceBundle({ bad: { missing: undefined } }), /cannot contain undefined/);
   assert.throws(() => createEvidenceBundle({ bad: Number.NaN }), /non-finite numbers/);
+  assert.throws(() => createEvidenceBundle({ bad: new Date("2026-09-04T00:00:00Z") }), /requires plain objects/);
+
+  const cyclic: Record<string, unknown> = {};
+  cyclic.self = cyclic;
+  assert.throws(() => createEvidenceBundle({ bad: cyclic }), /cyclic references/);
 });
 
 test("verification reports malformed non-JSON payloads instead of throwing", () => {
