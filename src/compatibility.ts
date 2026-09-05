@@ -37,15 +37,22 @@ export interface HostCompatibilityDiff {
 
 const SHA256_RE = /^[0-9a-f]{64}$/;
 const OFFSET_TIMESTAMP_RE = /(?:Z|[+-]\d{2}:\d{2})$/;
+const INSTALL_MODES = new Set<HostInstallMode>(["copy", "symlink", "registry", "plugin"]);
+const INSTALL_SCOPES = new Set<HostInstallScope>(["project", "user"]);
+const OUTCOMES = new Set<HostCompatibilityOutcome>(["pass", "fail", "error", "skipped"]);
+const CHECK_STATUSES = new Set<HostCheckStatus>(["pass", "fail", "error", "skipped"]);
 
 function nonEmpty(value: string, field: string): string {
+  if (typeof value !== "string") throw new Error(`${field} must be a string`);
   const normalized = value.trim();
   if (!normalized) throw new Error(`${field} must be non-empty`);
   return normalized;
 }
 
 function timestamp(value: string, field: string): number {
-  if (!OFFSET_TIMESTAMP_RE.test(value)) throw new Error(`${field} must include an explicit timezone offset`);
+  if (typeof value !== "string" || !OFFSET_TIMESTAMP_RE.test(value)) {
+    throw new Error(`${field} must include an explicit timezone offset`);
+  }
   const parsed = Date.parse(value);
   if (!Number.isFinite(parsed)) throw new Error(`${field} must be a valid timestamp`);
   return parsed;
@@ -64,21 +71,30 @@ function isFailure(status: HostCheckStatus | undefined): boolean {
 }
 
 export function validateHostCompatibility(record: HostCompatibilityRecord): HostCompatibilityRecord {
+  if (!record || typeof record !== "object") throw new Error("host compatibility record must be an object");
   if (record.schemaVersion !== HOST_COMPATIBILITY_SCHEMA_VERSION) {
     throw new Error(`schemaVersion must equal ${HOST_COMPATIBILITY_SCHEMA_VERSION}`);
   }
-  if (!SHA256_RE.test(record.skillSourceSha256)) throw new Error("skillSourceSha256 must be lowercase SHA-256 hex");
+  if (typeof record.skillSourceSha256 !== "string" || !SHA256_RE.test(record.skillSourceSha256)) {
+    throw new Error("skillSourceSha256 must be lowercase SHA-256 hex");
+  }
+  if (!record.host || typeof record.host !== "object") throw new Error("host must be an object");
   nonEmpty(record.host.id, "host.id");
   nonEmpty(record.host.version, "host.version");
+  if (!INSTALL_MODES.has(record.installMode)) throw new Error("installMode is invalid");
+  if (!INSTALL_SCOPES.has(record.scope)) throw new Error("scope is invalid");
+  if (!OUTCOMES.has(record.outcome)) throw new Error("outcome is invalid");
   const started = timestamp(record.startedAt, "startedAt");
   const finished = timestamp(record.finishedAt, "finishedAt");
   if (finished < started) throw new Error("finishedAt cannot precede startedAt");
-  if (record.checks.length === 0) throw new Error("checks must be non-empty");
+  if (!Array.isArray(record.checks) || record.checks.length === 0) throw new Error("checks must be non-empty");
   const ids = new Set<string>();
   for (const check of record.checks) {
+    if (!check || typeof check !== "object") throw new Error("checks must contain objects");
     const id = nonEmpty(check.id, "check.id");
     if (ids.has(id)) throw new Error(`duplicate check id: ${id}`);
     ids.add(id);
+    if (!CHECK_STATUSES.has(check.status)) throw new Error(`check ${id} has invalid status`);
     if (check.evidence !== undefined) nonEmpty(check.evidence, "check.evidence");
   }
   if (record.evidenceUri !== undefined) nonEmpty(record.evidenceUri, "evidenceUri");
@@ -90,13 +106,15 @@ export function hostCompatibilityFingerprint(record: HostCompatibilityRecord): s
   const canonical = JSON.stringify({
     schemaVersion: record.schemaVersion,
     skillSourceSha256: record.skillSourceSha256,
-    host: record.host,
+    host: { id: record.host.id, version: record.host.version },
     installMode: record.installMode,
     scope: record.scope,
     outcome: record.outcome,
     startedAt: record.startedAt,
     finishedAt: record.finishedAt,
-    checks: [...record.checks].sort((a, b) => a.id.localeCompare(b.id)),
+    checks: [...record.checks]
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map((check) => ({ id: check.id, status: check.status, evidence: check.evidence ?? null })),
     evidenceUri: record.evidenceUri ?? null,
   });
   return createHash("sha256").update(canonical).digest("hex");
