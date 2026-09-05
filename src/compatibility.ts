@@ -31,6 +31,8 @@ export interface HostCompatibilityDiff {
   regressions: readonly string[];
   fixes: readonly string[];
   unchangedFailures: readonly string[];
+  newChecks: readonly string[];
+  missingChecks: readonly string[];
   newCells: readonly string[];
   missingCells: readonly string[];
 }
@@ -66,8 +68,24 @@ function checkMap(record: HostCompatibilityRecord): Map<string, HostCheckStatus>
   return new Map(record.checks.map((check) => [check.id, check.status]));
 }
 
-function isFailure(status: HostCheckStatus | undefined): boolean {
+function isFailure(status: HostCheckStatus): boolean {
   return status === "fail" || status === "error";
+}
+
+function validateOutcome(record: HostCompatibilityRecord): void {
+  const statuses = record.checks.map((check) => check.status);
+  if (record.outcome === "pass" && statuses.some((status) => status !== "pass")) {
+    throw new Error("pass outcome requires every check to pass");
+  }
+  if (record.outcome === "fail" && !statuses.includes("fail")) {
+    throw new Error("fail outcome requires at least one failed check");
+  }
+  if (record.outcome === "error" && !statuses.includes("error")) {
+    throw new Error("error outcome requires at least one error check");
+  }
+  if (record.outcome === "skipped" && statuses.some((status) => status !== "skipped")) {
+    throw new Error("skipped outcome requires every check to be skipped");
+  }
 }
 
 export function validateHostCompatibility(record: HostCompatibilityRecord): HostCompatibilityRecord {
@@ -97,6 +115,7 @@ export function validateHostCompatibility(record: HostCompatibilityRecord): Host
     if (!CHECK_STATUSES.has(check.status)) throw new Error(`check ${id} has invalid status`);
     if (check.evidence !== undefined) nonEmpty(check.evidence, "check.evidence");
   }
+  validateOutcome(record);
   if (record.evidenceUri !== undefined) nonEmpty(record.evidenceUri, "evidenceUri");
   return record;
 }
@@ -142,6 +161,8 @@ export function compareHostCompatibility(
   const regressions: string[] = [];
   const fixes: string[] = [];
   const unchangedFailures: string[] = [];
+  const newChecks: string[] = [];
+  const missingChecks: string[] = [];
   const newCells = [...after.keys()].filter((key) => !before.has(key)).sort();
   const missingCells = [...before.keys()].filter((key) => !after.has(key)).sort();
 
@@ -150,10 +171,17 @@ export function compareHostCompatibility(
     if (!next) continue;
     const previousChecks = checkMap(previous);
     const nextChecks = checkMap(next);
-    const ids = new Set([...previousChecks.keys(), ...nextChecks.keys()]);
-    for (const id of [...ids].sort()) {
-      const wasFailure = isFailure(previousChecks.get(id));
-      const isNowFailure = isFailure(nextChecks.get(id));
+    for (const id of [...previousChecks.keys()].filter((id) => !nextChecks.has(id)).sort()) {
+      missingChecks.push(`${key}|${id}`);
+    }
+    for (const id of [...nextChecks.keys()].filter((id) => !previousChecks.has(id)).sort()) {
+      newChecks.push(`${key}|${id}`);
+    }
+    for (const id of [...previousChecks.keys()].filter((id) => nextChecks.has(id)).sort()) {
+      const previousStatus = previousChecks.get(id)!;
+      const nextStatus = nextChecks.get(id)!;
+      const wasFailure = isFailure(previousStatus);
+      const isNowFailure = isFailure(nextStatus);
       const label = `${key}|${id}`;
       if (!wasFailure && isNowFailure) regressions.push(label);
       else if (wasFailure && !isNowFailure) fixes.push(label);
@@ -166,6 +194,8 @@ export function compareHostCompatibility(
     regressions,
     fixes,
     unchangedFailures,
+    newChecks,
+    missingChecks,
     newCells,
     missingCells,
   };
