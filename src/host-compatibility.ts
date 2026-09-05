@@ -1,4 +1,4 @@
-import { sha256Canonical } from "./bundle.js";
+import { sha256Json } from "./bundle.js";
 
 export const HOST_COMPATIBILITY_SCHEMA_VERSION = "skillbench.host-compatibility/v1" as const;
 
@@ -82,7 +82,7 @@ export function summarizeHostCompatibility(record: HostCompatibilityRecord): Hos
     errored: counts.error,
     skipped: counts.skipped,
     compatible: counts.fail === 0 && counts.error === 0 && counts.pass > 0,
-    recordSha256: sha256Canonical(record),
+    recordSha256: sha256Json(record),
   };
 }
 
