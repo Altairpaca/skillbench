@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
 import { createEvidenceBundle, verifyEvidenceBundle } from "./bundle.js";
+import { compareHostCompatibility, hostCompatibilityFingerprint, validateHostCompatibility } from "./compatibility.js";
 import { evaluateGate } from "./gate.js";
 import { compareEvidence, validateSkill } from "./skill.js";
+import type { HostCompatibilityRecord } from "./compatibility.js";
 import type { EvidenceBundle, GatePolicy, SkillEvidenceReport } from "./contracts.js";
 
 function usage(): never {
@@ -12,7 +14,9 @@ function usage(): never {
       "  skillbench compare <base-report.json> <current-report.json>\n" +
       "  skillbench gate <base-report.json> <current-report.json> [policy.json]\n" +
       "  skillbench bundle <name=report.json> [name=report.json ...]\n" +
-      "  skillbench verify-bundle <bundle.json>",
+      "  skillbench verify-bundle <bundle.json>\n" +
+      "  skillbench compat-validate <host-record.json>\n" +
+      "  skillbench compat-compare <baseline-records.json> <current-records.json>",
   );
   process.exit(2);
 }
@@ -78,6 +82,26 @@ async function main(): Promise<void> {
     const result = verifyEvidenceBundle(await readJson<EvidenceBundle>(path));
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     process.exitCode = result.valid ? 0 : 1;
+    return;
+  }
+
+  if (command === "compat-validate") {
+    const path = args[0];
+    if (!path) usage();
+    const record = validateHostCompatibility(await readJson<HostCompatibilityRecord>(path));
+    process.stdout.write(`${JSON.stringify({ valid: true, fingerprint: hostCompatibilityFingerprint(record) }, null, 2)}\n`);
+    return;
+  }
+
+  if (command === "compat-compare") {
+    const [basePath, currentPath] = args;
+    if (!basePath || !currentPath) usage();
+    const base = await readJson<HostCompatibilityRecord[]>(basePath);
+    const current = await readJson<HostCompatibilityRecord[]>(currentPath);
+    if (!Array.isArray(base) || !Array.isArray(current)) throw new Error("compatibility inputs must be JSON arrays");
+    const report = compareHostCompatibility(base, current);
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    process.exitCode = report.regressions.length === 0 && report.missingCells.length === 0 ? 0 : 1;
     return;
   }
 
