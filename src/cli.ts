@@ -101,7 +101,12 @@ async function main(): Promise<void> {
     if (!Array.isArray(base) || !Array.isArray(current)) throw new Error("compatibility inputs must be JSON arrays");
     const report = compareHostCompatibility(base, current);
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-    process.exitCode = report.regressions.length === 0 && report.missingCells.length === 0 ? 0 : 1;
+    process.exitCode =
+      report.regressions.length === 0 &&
+      report.missingChecks.length === 0 &&
+      report.missingCells.length === 0
+        ? 0
+        : 1;
     return;
   }
 
