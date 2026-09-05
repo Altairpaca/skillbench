@@ -34,22 +34,26 @@ test("validates portable host compatibility evidence", () => {
   assert.match(hostCompatibilityFingerprint(value), /^[0-9a-f]{64}$/);
 });
 
-test("rejects duplicate checks, bad digests, and naive timestamps", () => {
+test("rejects duplicate checks, bad digests, naive timestamps, and contradictory outcomes", () => {
   assert.throws(() => validateHostCompatibility(record({ skillSourceSha256: "bad" })), /SHA-256/);
   assert.throws(
     () => validateHostCompatibility(record({ checks: [{ id: "install", status: "pass" }, { id: "install", status: "fail" }] })),
     /duplicate check id/,
   );
   assert.throws(() => validateHostCompatibility(record({ startedAt: "2026-09-05T00:00:00" })), /timezone offset/);
+  assert.throws(
+    () => validateHostCompatibility(record({ outcome: "pass", checks: [{ id: "install", status: "fail" }] })),
+    /pass outcome requires every check to pass/,
+  );
 });
 
 test("reports regressions, fixes, old failures, new cells, and missing cells separately", () => {
   const baseline = [
-    record({ checks: [{ id: "install", status: "pass" }, { id: "discover", status: "fail" }] }),
+    record({ outcome: "fail", checks: [{ id: "install", status: "pass" }, { id: "discover", status: "fail" }] }),
     record({ host: { id: "claude", version: "2.0.0" } }),
   ];
   const current = [
-    record({ checks: [{ id: "install", status: "fail" }, { id: "discover", status: "pass" }] }),
+    record({ outcome: "fail", checks: [{ id: "install", status: "fail" }, { id: "discover", status: "pass" }] }),
     record({ host: { id: "cursor", version: "3.0.0" } }),
   ];
   const diff = compareHostCompatibility(baseline, current);
@@ -57,6 +61,24 @@ test("reports regressions, fixes, old failures, new cells, and missing cells sep
   assert.deepEqual(diff.fixes, ["codex|1.2.3|copy|project|discover"]);
   assert.deepEqual(diff.newCells, ["cursor|3.0.0|copy|project"]);
   assert.deepEqual(diff.missingCells, ["claude|2.0.0|copy|project"]);
+});
+
+test("deleted checks are missing evidence rather than fixes", () => {
+  const diff = compareHostCompatibility(
+    [record({ outcome: "fail", checks: [{ id: "install", status: "fail" }, { id: "discover", status: "pass" }] })],
+    [record({ checks: [{ id: "discover", status: "pass" }] })],
+  );
+  assert.deepEqual(diff.fixes, []);
+  assert.deepEqual(diff.missingChecks, ["codex|1.2.3|copy|project|install"]);
+});
+
+test("new checks are surfaced without being called regressions", () => {
+  const diff = compareHostCompatibility(
+    [record({ checks: [{ id: "install", status: "pass" }] })],
+    [record({ checks: [{ id: "install", status: "pass" }, { id: "discover", status: "pass" }] })],
+  );
+  assert.deepEqual(diff.regressions, []);
+  assert.deepEqual(diff.newChecks, ["codex|1.2.3|copy|project|discover"]);
 });
 
 test("host version changes are not silently treated as comparable", () => {
