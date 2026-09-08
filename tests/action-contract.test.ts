@@ -14,10 +14,12 @@ test("GitHub Action keeps verification and evidence boundaries explicit", async 
   assert.doesNotMatch(action, /continue-on-error:\s*true/);
 });
 
-test("example workflow uses a pinned SkillBench revision placeholder", async () => {
+test("example workflow labels the current action reference as pre-release", async () => {
   const example = await readFile("examples/github-action.yml", "utf8");
 
-  assert.match(example, /uses: Altairpaca\/skillbench@v0/);
+  assert.match(example, /uses: Altairpaca\/skillbench@main/);
+  assert.match(example, /Pre-release channel/);
+  assert.match(example, /pin a release tag or commit SHA once published/);
   assert.match(example, /skill-path:/);
   assert.match(example, /permissions:\n\s+contents: read/);
 });
