@@ -13,4 +13,17 @@ skillbench compat-validate host-record.json
 skillbench compat-compare baseline-hosts.json current-hosts.json
 ```
 
-See `docs/HOST_COMPATIBILITY.md`, `docs/PRODUCT.md`, and `docs/LANDSCAPE.md`.
+## GitHub Action (pre-release)
+
+A repository can now use SkillBench as a pull-request gate without reproducing the CLI setup:
+
+```yaml
+- uses: Altairpaca/skillbench@main # Pre-release channel; pin a release tag or commit SHA once published.
+  with:
+    skill-path: path/to/SKILL.md
+    upload-artifact: "true"
+```
+
+The action builds the checked-out SkillBench revision, validates the requested `SKILL.md`, fails the job when conformance fails, and uploads the JSON report as short-lived evidence. It does not claim that a skill works on a host merely because the static contract passes; real host compatibility remains a separate evidence surface.
+
+See `examples/github-action.yml`, `docs/HOST_COMPATIBILITY.md`, `docs/PRODUCT.md`, and `docs/LANDSCAPE.md`.

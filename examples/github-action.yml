@@ -1,0 +1,25 @@
+name: SkillBench
+
+on:
+  pull_request:
+    paths:
+      - "**/SKILL.md"
+      - ".github/workflows/skillbench.yml"
+  push:
+    branches: [main]
+    paths:
+      - "**/SKILL.md"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-skill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify skill contract
+        uses: Altairpaca/skillbench@main # Pre-release channel; pin a release tag or commit SHA once published.
+        with:
+          skill-path: path/to/SKILL.md
+          upload-artifact: "true"

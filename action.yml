@@ -1,0 +1,64 @@
+name: SkillBench Verify
+description: Validate an agent SKILL.md with SkillBench Contracts and preserve the evidence report.
+inputs:
+  skill-path:
+    description: Path to the SKILL.md file relative to the caller repository root.
+    required: true
+  node-version:
+    description: Node.js version used to build and run SkillBench.
+    required: false
+    default: "22"
+  upload-artifact:
+    description: Upload the JSON validation report as a workflow artifact.
+    required: false
+    default: "true"
+  artifact-name:
+    description: Base name for the uploaded evidence artifact.
+    required: false
+    default: skillbench-evidence
+outputs:
+  report-path:
+    description: Absolute path to the generated JSON evidence report on the runner.
+    value: ${{ steps.verify.outputs.report-path }}
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: npm
+        cache-dependency-path: ${{ github.action_path }}/package.json
+
+    - name: Install SkillBench dependencies
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm install --ignore-scripts --no-audit --no-fund --prefer-offline
+
+    - name: Build SkillBench
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm run build
+
+    - name: Validate skill
+      id: verify
+      shell: bash
+      env:
+        SKILLBENCH_SKILL_PATH: ${{ inputs.skill-path }}
+      run: |
+        set +e
+        report="${RUNNER_TEMP}/skillbench-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+        node "${{ github.action_path }}/dist/src/cli.js" validate "${GITHUB_WORKSPACE}/${SKILLBENCH_SKILL_PATH}" > "${report}"
+        status=$?
+        cat "${report}"
+        echo "report-path=${report}" >> "${GITHUB_OUTPUT}"
+        exit "${status}"
+
+    - name: Upload SkillBench evidence
+      if: ${{ always() && inputs.upload-artifact == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}-${{ github.job }}
+        path: ${{ steps.verify.outputs.report-path }}
+        if-no-files-found: warn
+        retention-days: 14
